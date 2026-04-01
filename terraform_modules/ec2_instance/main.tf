@@ -9,7 +9,11 @@ source = "hashicorp/aws"
 }
 }
 }
-resource "aws_instance" "kumar" {
+resource "aws_instance" "web" {
+tags = {
+name = "webserv"
+Env = "dev"
+}
  ami = var.ami_value
  instance_type = var.instance_type_value
  key_name = "terraform"
