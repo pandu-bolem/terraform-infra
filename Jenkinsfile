@@ -1,75 +1,49 @@
 pipeline {
     agent any
-
-    // Optional global environment variables
-    environment {
-        TF_WORKING_DIR = "." // path to your Terraform code
+    parameters {
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
     }
-
+    environment {
+        TF_WORKING_DIR = "."
+    }
     stages {
-
         stage('Checkout Code') {
             steps {
-                // Pull code from GitHub
-                git branch: 'main',
-                    url: 'https://github.com/pandu-bolem/terraform-infra.git'
+                git branch: 'main', url: 'https://github.com/pandu-bolem/terraform-infra.git'
             }
         }
-
         stage('Terraform Init') {
             steps {
-                // Use Jenkins AWS credential safely
-                withCredentials([usernamePassword(
-                    credentialsId: 'aws-creds', 
-                    usernameVariable: 'AWS_ACCESS_KEY_ID', 
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    
-                    sh """
-                        cd $TF_WORKING_DIR
-                        terraform init
-                    """
+                withCredentials([usernamePassword(credentialsId: 'aws-creds',
+                                                 usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                 passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir(TF_WORKING_DIR) {
+                        sh 'terraform init'
+                    }
                 }
             }
         }
-
-        stage('Terraform Plan') {
+        stage('Terraform Action') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'aws-creds', 
-                    usernameVariable: 'AWS_ACCESS_KEY_ID', 
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    
-                    sh """
-                        cd $TF_WORKING_DIR
-                        terraform plan -out=tfplan.out
-                    """
-                }
-            }
-        }
-
-        stage('Terraform Apply') {
-            steps {
-                input message: "Approve Terraform Apply?"  // Manual approval
-                withCredentials([usernamePassword(
-                    credentialsId: 'aws-creds', 
-                    usernameVariable: 'AWS_ACCESS_KEY_ID', 
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    
-                    sh """
-                        cd $TF_WORKING_DIR
-                        terraform apply -auto-approve tfplan.out
-                    """
+                withCredentials([usernamePassword(credentialsId: 'aws-creds',
+                                                 usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                 passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir(TF_WORKING_DIR) {
+                        script {
+                            if (params.ACTION == 'apply') {
+                                sh 'terraform apply -auto-approve'
+                            } else if (params.ACTION == 'destroy') {
+                                sh 'terraform destroy -auto-approve'
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-
     post {
-        success {
-            echo "Terraform deployed successfully!"
-        }
-        failure {
-            echo "Build failed!"
+        always {
+            echo "Terraform ${params.ACTION} completed!"
         }
     }
 }
