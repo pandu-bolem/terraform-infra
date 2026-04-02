@@ -1,49 +1,122 @@
 pipeline {
+
     agent any
+
     parameters {
-        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
+
+        choice(
+            name: 'ENV',
+            choices: ['dev', 'prod'],
+            description: 'Select Environment'
+        )
+
+        choice(
+            name: 'ACTION',
+            choices: ['plan','apply','destroy'],
+            description: 'Terraform Action'
+        )
+
     }
+
     environment {
-        TF_WORKING_DIR = "."
+        TF_DIR = "environments/${params.ENV}"
     }
+
     stages {
+
         stage('Checkout Code') {
+
             steps {
-                git branch: 'main', url: 'https://github.com/pandu-bolem/terraform-infra.git'
+
+                git branch: "${env.BRANCH_NAME}",
+                url: 'https://github.com/pandu-bolem/terraform-infra.git'
+
             }
+
         }
+
         stage('Terraform Init') {
+
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws-creds',
-                                                 usernameVariable: 'AWS_ACCESS_KEY_ID',
-                                                 passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    dir(TF_WORKING_DIR) {
+
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+
+                    dir("${TF_DIR}") {
+
                         sh 'terraform init'
+
                     }
+
                 }
+
             }
+
         }
-        stage('Terraform Action') {
+
+        stage('Terraform Plan') {
+
+            when {
+
+                expression { params.ACTION == 'plan' }
+
+            }
+
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws-creds',
-                                                 usernameVariable: 'AWS_ACCESS_KEY_ID',
-                                                 passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    dir(TF_WORKING_DIR) {
-                        script {
-                            if (params.ACTION == 'apply') {
-                                sh 'terraform apply -auto-approve'
-                            } else if (params.ACTION == 'destroy') {
-                                sh 'terraform destroy -auto-approve'
-                            }
-                        }
-                    }
+
+                dir("${TF_DIR}") {
+
+                    sh 'terraform plan -var-file=terraform.tfvars'
+
                 }
+
             }
+
         }
-    }
-    post {
-        always {
-            echo "Terraform ${params.ACTION} completed!"
+
+        stage('Terraform Apply') {
+
+            when {
+
+                expression { params.ACTION == 'apply' }
+
+            }
+
+            steps {
+
+                dir("${TF_DIR}") {
+
+                    sh 'terraform apply -auto-approve -var-file=terraform.tfvars'
+
+                }
+
+            }
+
         }
+
+        stage('Terraform Destroy') {
+
+            when {
+
+                expression { params.ACTION == 'destroy' }
+
+            }
+
+            steps {
+
+                dir("${TF_DIR}") {
+
+                    sh 'terraform destroy -auto-approve -var-file=terraform.tfvars'
+
+                }
+
+            }
+
+        }
+
     }
+
 }
