@@ -3,7 +3,7 @@ pipeline {
 
     // Optional global environment variables
     environment {
-        TF_WORKING_DIR = "./terraform" // path to your Terraform code
+        TF_WORKING_DIR = "." // path to your Terraform code
     }
 
     stages {
